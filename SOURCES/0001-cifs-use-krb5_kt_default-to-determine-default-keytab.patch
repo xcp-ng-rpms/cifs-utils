@@ -1,0 +1,58 @@
+From d32db5e1e2c32f0634a26de277fd91daf47ce32d Mon Sep 17 00:00:00 2001
+From: Jeff Layton <jlayton@samba.org>
+Date: Mon, 7 Apr 2014 14:35:17 -0400
+Subject: [PATCH] cifs: use krb5_kt_default() to determine default keytab
+ location
+
+...don't assume that it's in /etc/krb5.keytab.
+
+Reported-by: Konstantin Lepikhov <klepikho@redhat.com>
+Signed-off-by: Jeff Layton <jlayton@samba.org>
+(cherry picked from commit a016e18969d10e3c777f35fe21b1c1f8c1d70880)
+Signed-off-by: Sachin Prabhu <sprabhu@redhat.com>
+---
+ cifs.upcall.c | 13 +++++++++----
+ 1 file changed, 9 insertions(+), 4 deletions(-)
+
+diff --git a/cifs.upcall.c b/cifs.upcall.c
+index cc65824..e8544c2 100644
+--- a/cifs.upcall.c
++++ b/cifs.upcall.c
+@@ -55,7 +55,6 @@
+ #define	CIFS_DEFAULT_KRB5_DIR		"/tmp"
+ #define	CIFS_DEFAULT_KRB5_USER_DIR	"/run/user/%U"
+ #define	CIFS_DEFAULT_KRB5_PREFIX	"krb5cc"
+-#define CIFS_DEFAULT_KRB5_KEYTAB	"/etc/krb5.keytab"
+ 
+ #define	MAX_CCNAME_LEN			PATH_MAX + 5
+ 
+@@ -205,9 +204,15 @@ init_cc_from_keytab(const char *keytab_name, const char *user)
+ 		goto icfk_cleanup;
+ 	}
+ 
+-	ret = krb5_kt_resolve(context, keytab_name, &keytab);
++	if (keytab_name)
++		ret = krb5_kt_resolve(context, keytab_name, &keytab);
++	else
++		ret = krb5_kt_default(context, &keytab);
++
+ 	if (ret) {
+-		syslog(LOG_DEBUG, "krb5_kt_resolve: %d", (int)ret);
++		syslog(LOG_DEBUG, "%s: %d",
++			keytab_name ? "krb5_kt_resolve" : "krb5_kt_default",
++			(int)ret);
+ 		goto icfk_cleanup;
+ 	}
+ 
+@@ -841,7 +846,7 @@ int main(const int argc, char *const argv[])
+ 	struct decoded_args arg;
+ 	const char *oid;
+ 	uid_t uid;
+-	char *keytab_name = CIFS_DEFAULT_KRB5_KEYTAB;
++	char *keytab_name = NULL;
+ 	time_t best_time = 0;
+ 
+ 	hostbuf[0] = '\0';
+-- 
+1.9.3
+

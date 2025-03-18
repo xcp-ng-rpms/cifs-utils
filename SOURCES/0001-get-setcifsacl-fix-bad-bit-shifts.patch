@@ -1,0 +1,50 @@
+From 99d2a5a4517216a63cfdeef3ee30656938b3a98e Mon Sep 17 00:00:00 2001
+From: Jeff Layton <jlayton@samba.org>
+Date: Tue, 8 Oct 2013 21:07:24 -0400
+Subject: [PATCH] get/setcifsacl: fix bad bit-shifts
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+A Coverity scan turned up this warning:
+
+1. cifs-utils-6.2/setcifsacl.c:578:result_independent_of_operands – "(x & 0xff0000000000ULL) >> 48" is 0 regardless of the values of its operands. This occurs as the operand of assignment.
+
+...which is entirely true. That shift should be 40 bits, not 48. Also
+fix a similar bug in getcifsacl.c.
+
+Signed-off-by: Jeff Layton <jlayton@samba.org>
+---
+ getcifsacl.c | 2 +-
+ setcifsacl.c | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/getcifsacl.c b/getcifsacl.c
+index b8998ef..33f36b4 100644
+--- a/getcifsacl.c
++++ b/getcifsacl.c
+@@ -198,7 +198,7 @@ print_sid_raw:
+ 	id_auth_val += (unsigned long long)csid->authority[3] << 16;
+ 	id_auth_val += (unsigned long long)csid->authority[2] << 24;
+ 	id_auth_val += (unsigned long long)csid->authority[1] << 32;
+-	id_auth_val += (unsigned long long)csid->authority[0] << 48;
++	id_auth_val += (unsigned long long)csid->authority[0] << 40;
+ 
+ 	/*
+ 	 * MS-DTYP states that if the authority is >= 2^32, then it should be
+diff --git a/setcifsacl.c b/setcifsacl.c
+index ce708eb..7eeeaa6 100644
+--- a/setcifsacl.c
++++ b/setcifsacl.c
+@@ -575,7 +575,7 @@ raw_str_to_sid(const char *str, struct cifs_sid *csid)
+ 	csid->authority[3] = (x & 0x000000ff0000ULL) >> 16;
+ 	csid->authority[2] = (x & 0x0000ff000000ULL) >> 24;
+ 	csid->authority[1] = (x & 0x00ff00000000ULL) >> 32;
+-	csid->authority[0] = (x & 0xff0000000000ULL) >> 48;
++	csid->authority[0] = (x & 0xff0000000000ULL) >> 40;
+ 
+ 	/* now read the the subauthorities and store as __le32 vals */
+ 	p = q + 1;
+-- 
+1.8.3.1
+

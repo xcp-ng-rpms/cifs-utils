@@ -1,0 +1,38 @@
+From 930b724e784c28bd1b3024f7fc6ca24cdac82a4d Mon Sep 17 00:00:00 2001
+From: Jeff Layton <jlayton@samba.org>
+Date: Wed, 9 Oct 2013 08:14:21 -0400
+Subject: [PATCH] getcifsacl: remove some dead code
+
+Coverity says:
+
+Error: DEADCODE (CWE-561): [#def5]
+cifs-utils-6.2/getcifsacl.c:101: assignment: Assigning: "mflags" = "false".
+cifs-utils-6.2/getcifsacl.c:109: const: At condition "mflags", the value of "mflags" must be equal to 0.
+cifs-utils-6.2/getcifsacl.c:109: dead_error_condition: The condition "mflags" cannot be true.
+cifs-utils-6.2/getcifsacl.c:110: dead_error_line: Execution cannot reach this statement "printf("|");".
+
+Acked-by: Shirish Pargaonkar <shirishpargaonkar@gmail.com>
+Signed-off-by: Jeff Layton <jlayton@samba.org>
+---
+ getcifsacl.c | 5 +----
+ 1 file changed, 1 insertion(+), 4 deletions(-)
+
+diff --git a/getcifsacl.c b/getcifsacl.c
+index 33f36b4..f08cdea 100644
+--- a/getcifsacl.c
++++ b/getcifsacl.c
+@@ -106,10 +106,7 @@ print_ace_flags(uint8_t flags, int raw)
+ 	}
+ 
+ 	if (flags & OBJECT_INHERIT_FLAG) {
+-		if (mflags)
+-			printf("|");
+-		else
+-			mflags = true;
++		mflags = true;
+ 		printf("OI");
+ 	}
+ 	if (flags & CONTAINER_INHERIT_FLAG) {
+-- 
+1.8.3.1
+

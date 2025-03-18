@@ -1,0 +1,33 @@
+From 2c907f120c77166e44e645e46a8fa1218f25bb5d Mon Sep 17 00:00:00 2001
+From: Jeff Layton <jlayton@samba.org>
+Date: Tue, 12 Jul 2016 16:53:25 -0400
+Subject: [PATCH 07/12] aclocal: fix typo in idmap.m4
+
+We really don't want to do the same check twice.
+
+Signed-off-by: Jeff Layton <jlayton@samba.org>
+(cherry picked from commit bbbf7133aec555c5d27ee3163d6045ecfc4673d9)
+
+Resolves bz: 1427337
+
+Signed-off-by: Sachin Prabhu <sprabhu@redhat.com>
+---
+ aclocal/idmap.m4 | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/aclocal/idmap.m4 b/aclocal/idmap.m4
+index 3ccdae3..4e16a46 100644
+--- a/aclocal/idmap.m4
++++ b/aclocal/idmap.m4
+@@ -19,7 +19,7 @@ if test $enable_cifsidmap != "no" -o $enable_cifsacl != "no"; then
+ 			])
+ fi
+ 
+-if test $enable_cifsacl != "no" -o $enable_cifsacl != "no"; then
++if test $enable_cifsidmap != "no" -o $enable_cifsacl != "no"; then
+ 	ac_wbc_save_LDFLAGS="$LDFLAGS"
+ 	ac_wbc_save_LIBS="$LIBS"
+ 	LDFLAGS="$LDFLAGS $WBCLIENT_LIBS"
+-- 
+2.9.3
+

@@ -1,0 +1,42 @@
+From cf3af6ab831129e7f8e50eb00d9a4120e297cf7a Mon Sep 17 00:00:00 2001
+From: Karel Zak <kzak@redhat.com>
+Date: Thu, 7 Jan 2016 11:02:49 +0100
+Subject: [PATCH 5/5] mount.cifs: ignore x-* mount options
+
+x-* prefix is used for userspace mount options and it's pretty
+commonly used to extend fstab configuration in systemd world (e.g.
+x-systemd.automount). These options is necessary to ignored.
+
+The command mount(8) does not pass x-* mount options to mount.<type>
+helpers, but in some use-cases it's possible that the cifs helper reads
+mount options from fstab or users directly call mount.cifs and copy & past
+mount options, etc.
+
+This patch marks all options prefixed by "x-" as OPT_IGNORE to make
+things more robust for end-users. We already uses the same concept for
+_netdev.
+
+Signed-off-by: Karel Zak <kzak@redhat.com>
+Signed-off-by: Jeff Layton <jlayton@samba.org>
+(cherry picked from commit be5046ae3fabca17f19672f7b4019efb6a869298)
+Signed-off-by: Sachin Prabhu <sprabhu@redhat.com>
+---
+ mount.cifs.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/mount.cifs.c b/mount.cifs.c
+index 3535096..5c5734f 100644
+--- a/mount.cifs.c
++++ b/mount.cifs.c
+@@ -756,6 +756,8 @@ static int parse_opt_token(const char *token)
+ 		return OPT_BKUPGID;
+ 	if (strncmp(token, "nofail", 6) == 0)
+ 		return OPT_NOFAIL;
++	if (strncmp(token, "x-", 2) == 0)
++		return OPT_IGNORE;
+ 
+ 	return OPT_ERROR;
+ }
+-- 
+2.5.5
+

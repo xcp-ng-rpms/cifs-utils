@@ -1,0 +1,100 @@
+From 7e2e95d0c84bd6960c46f1fa1c8227c50dd7a4b3 Mon Sep 17 00:00:00 2001
+From: Jeff Layton <jlayton@samba.org>
+Date: Thu, 10 Oct 2013 22:05:05 -0400
+Subject: [PATCH] mount.cifs: fix bad free() of string returned by dirname()
+
+Coverity says:
+
+  Error: CPPCHECK_WARNING: [#def10]
+  cifs-utils-6.2/mount.cifs.c:1518: error[memleakOnRealloc]: Common realloc mistake: 'mtabdir' nulled but not freed upon failure
+
+del_mtab has a number of bugs in handling of allocated memory:
+
+a) the return value of strdup() is not checked
+
+b) It calls realloc() on a pointer that wasn't returned by an allocation
+   function (e.g. malloc, calloc, etc.)
+
+c) If realloc() fails, it doesn't call free() on the original memory
+   returned by strdup()
+
+Fix all of these bugs and add newlines to the end of the error messages
+in del_mtab.
+
+Signed-off-by: Jeff Layton <jlayton@samba.org>
+---
+ mount.cifs.c | 29 ++++++++++++++++++-----------
+ 1 file changed, 18 insertions(+), 11 deletions(-)
+
+diff --git a/mount.cifs.c b/mount.cifs.c
+index 7206dcb..497665d 100644
+--- a/mount.cifs.c
++++ b/mount.cifs.c
+@@ -1508,23 +1508,29 @@ add_mtab_exit:
+ static int
+ del_mtab(char *mountpoint)
+ {
+-	int tmprc, rc = 0;
++	int len, tmprc, rc = 0;
+ 	FILE *mnttmp, *mntmtab;
+ 	struct mntent *mountent;
+-	char *mtabfile, *mtabdir, *mtabtmpfile;
++	char *mtabfile, *mtabdir, *mtabtmpfile = NULL;
+ 
+ 	mtabfile = strdup(MOUNTED);
+-	mtabdir = dirname(mtabfile);
+-	mtabdir = realloc(mtabdir, strlen(mtabdir) + strlen(MNT_TMP_FILE) + 2);
+-	if (!mtabdir) {
+-		fprintf(stderr, "del_mtab: cannot determine current mtab path");
++	if (!mtabfile) {
++		fprintf(stderr, "del_mtab: cannot strdup MOUNTED\n");
+ 		rc = EX_FILEIO;
+ 		goto del_mtab_exit;
+ 	}
+ 
+-	mtabtmpfile = strcat(mtabdir, MNT_TMP_FILE);
++	mtabdir = dirname(mtabfile);
++	len = strlen(mtabdir) + strlen(MNT_TMP_FILE);
++	mtabtmpfile = malloc(len + 1);
+ 	if (!mtabtmpfile) {
+-		fprintf(stderr, "del_mtab: cannot allocate memory to tmp file");
++		fprintf(stderr, "del_mtab: cannot allocate memory to tmp file\n");
++		rc = EX_FILEIO;
++		goto del_mtab_exit;
++	}
++
++	if (sprintf(mtabtmpfile, "%s%s", mtabdir, MNT_TMP_FILE) != len) {
++		fprintf(stderr, "del_mtab: error writing new string\n");
+ 		rc = EX_FILEIO;
+ 		goto del_mtab_exit;
+ 	}
+@@ -1532,14 +1538,14 @@ del_mtab(char *mountpoint)
+ 	atexit(unlock_mtab);
+ 	rc = lock_mtab();
+ 	if (rc) {
+-		fprintf(stderr, "del_mtab: cannot lock mtab");
++		fprintf(stderr, "del_mtab: cannot lock mtab\n");
+ 		rc = EX_FILEIO;
+ 		goto del_mtab_exit;
+ 	}
+ 
+ 	mtabtmpfile = mktemp(mtabtmpfile);
+ 	if (!mtabtmpfile) {
+-		fprintf(stderr, "del_mtab: cannot setup tmp file destination");
++		fprintf(stderr, "del_mtab: cannot setup tmp file destination\n");
+ 		rc = EX_FILEIO;
+ 		goto del_mtab_exit;
+ 	}
+@@ -1587,7 +1593,8 @@ del_mtab(char *mountpoint)
+ 
+ del_mtab_exit:
+ 	unlock_mtab();
+-	free(mtabdir);
++	free(mtabtmpfile);
++	free(mtabfile);
+ 	return rc;
+ 
+ del_mtab_error:
+-- 
+1.8.3.1
+

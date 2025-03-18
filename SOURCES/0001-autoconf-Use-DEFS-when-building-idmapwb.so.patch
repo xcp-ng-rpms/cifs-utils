@@ -1,0 +1,40 @@
+From c9f1860e0de31cc4e1e1fa70ef7842fbbee62878 Mon Sep 17 00:00:00 2001
+From: Sachin Prabhu <sprabhu@redhat.com>
+Date: Thu, 30 Jun 2016 15:47:39 +0100
+Subject: [PATCH] autoconf: Use $(DEFS) when building idmapwb.so
+
+Partial backport of upstream
+7b2b35586d10c04f501222701c3382455a07ff9e
+
+We do not backport changes to the pam_cifscreds.so module as that is not
+included in the RHEL 7 cifs-utils package.
+
+Original Summary:
+We should pass the macros defined in $(DEFS) when building idmapwb.so
+and pam_cifscreds.so. The autoconf process sets the macro HAVE_CONFIG_H
+using the $(DEFS) variable. This macro has to be defined to allow the
+source files to include config.h
+
+Resolves: bz 1289454
+
+Signed-off-by: Sachin Prabhu <sprabhu@redhat.com>
+---
+ Makefile.am | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/Makefile.am b/Makefile.am
+index 6407520..1c97f45 100644
+--- a/Makefile.am
++++ b/Makefile.am
+@@ -84,7 +84,7 @@ plugin_PROGRAMS = idmapwb.so
+ man_MANS += idmapwb.8
+ 
+ idmapwb.so: idmapwb.c
+-	$(CC) $(CFLAGS) $(AM_CFLAGS) $(WBCLIENT_CFLAGS) $(LDFLAGS) -shared -fpic -o $@ $+ $(WBCLIENT_LIBS)
++	$(CC) $(DEFS) $(CFLAGS) $(AM_CFLAGS) $(WBCLIENT_CFLAGS) $(LDFLAGS) -shared -fpic -o $@ $+ $(WBCLIENT_LIBS)
+ 
+ idmapwb.8: idmapwb.8.in
+ 	$(SED) 's,[@]pluginpath@,$(pluginpath),' $(srcdir)/$@.in > $@-t && mv $@-t $@
+-- 
+2.5.5
+
