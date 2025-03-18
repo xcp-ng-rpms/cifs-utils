@@ -1,42 +1,40 @@
+## START: Set by rpmautospec
+## (rpmautospec version 0.6.5)
+## RPMAUTOSPEC: autorelease, autochangelog
+%define autorelease(e:s:pb:n) %{?-p:0.}%{lua:
+    release_number = 2;
+    base_release_number = tonumber(rpm.expand("%{?-b*}%{!?-b:1}"));
+    print(release_number + base_release_number - 1);
+}%{?-e:.%{-e*}}%{?-s:.%{-s*}}%{!?-n:%{?dist}}
+## END: Set by rpmautospec
+
 #% define pre_release rc1
 %define pre_release %nil
 
+%global bash_completion_dir %(pkg-config --variable=completionsdir bash-completion || echo /etc/bash_completion.d)
+
 Name:            cifs-utils
-Version:         6.2
-Release:         10%{pre_release}%{?dist}
+Version:         7.1
+Release:         %autorelease
 Summary:         Utilities for mounting and managing CIFS mounts
 
-Group:           System Environment/Daemons
 License:         GPLv3
 URL:             http://linux-cifs.samba.org/cifs-utils/
-BuildRoot:       %{_tmppath}/%{name}-%{version}%{pre_release}-%{release}-root-%(%{__id_u} -n)
 
-BuildRequires:   libcap-ng-devel libtalloc-devel krb5-devel keyutils-libs-devel autoconf automake libwbclient-devel
+BuildRequires:  gcc
+BuildRequires:  libcap-ng-devel libtalloc-devel krb5-devel keyutils-libs-devel autoconf automake libwbclient-devel pam-devel
+BuildRequires:  python3-docutils
+BuildRequires: make
 
 Requires:        keyutils
 Requires(post):  /usr/sbin/alternatives
 Requires(preun): /usr/sbin/alternatives
 
-Source0:         ftp://ftp.samba.org/pub/linux-cifs/cifs-utils/%{name}-%{version}%{pre_release}.tar.bz2
-Patch1:          0001-get-setcifsacl-fix-bad-bit-shifts.patch
-Patch2:          0002-getcifsacl-remove-some-dead-code.patch
-Patch3:          0003-asn1-remove-some-usused-functions.patch
-Patch4:          0004-data_blob-clean-out-unused-functions.patch
-Patch5:          0005-mount.cifs-fix-bad-free-of-string-returned-by-dirnam.patch
-Patch6:          0001-asn1-fix-use-after-free-in-asn1_write.patch
-Patch7:          0001-cifs-use-krb5_kt_default-to-determine-default-keytab.patch
-Patch8:          0001-autoconf-fix-link-of-libwbclient.patch
-Patch9:          0002-mount.cifs-on-2nd-try-mount.cifs-must-also-uppercase.patch
-Patch10:         0003-mtab.c-include-paths.h-for-_PATH_MOUNTED.patch
-Patch11:         0004-manpage-clarify-use-of-backupuid-and-backupgid-in-mo.patch
-Patch12:         0005-mount.cifs-ignore-x-mount-options.patch
-Patch13:         0001-autoconf-Use-DEFS-when-building-idmapwb.so.patch
-Patch14:         0007-aclocal-fix-typo-in-idmap.m4.patch
-Patch15:         0008-mount.cifs-Removed-extra-comma-in-front-of-domain.patch
-Patch16:         0009-mount.cifs-Accept-empty-domains-on-the-command-line.patch
-Patch17:         0010-mount.cifs-Fixed-command-line-parsing-and-aligned-wi.patch
-Patch18:         0011-mount.cifs-Remove-unneeded-stdbool-header-include.patch
-Patch19:         0012-manpage-document-mfsymlinks-in-the-mount.cifs-man-pa.patch
+Recommends: %{name}-info%{?_isa} = %{version}-%{release}
+
+Source0:         https://download.samba.org/pub/linux-cifs/cifs-utils/%{name}-%{version}.tar.bz2
+
+Patch0: smbinfo-bash-completion.patch
 
 %description
 The SMB/CIFS protocol is a standard file sharing protocol widely deployed
@@ -48,36 +46,31 @@ file system.
 
 %package devel
 Summary:        Files needed for building plugins for cifs-utils
-Group:          Development/Libraries
 
 %description devel
 The SMB/CIFS protocol is a standard file sharing protocol widely deployed
 on Microsoft Windows machines. This package contains the header file
 necessary for building ID mapping plugins for cifs-utils.
 
+%package -n pam_cifscreds
+Summary:        PAM module to manage NTLM credentials in kernel keyring
+
+%description -n pam_cifscreds
+The pam_cifscreds PAM module is a tool for automatically adding
+credentials (username and password) for the purpose of establishing
+sessions in multiuser mounts.
+
+When a cifs filesystem is mounted with the "multiuser" option, and does
+not use krb5 authentication, it needs to be able to get the credentials
+for each user from somewhere. The pam_cifscreds module can be used to
+provide these credentials to the kernel automatically at login.
+
 %prep
-%setup -q -n %{name}-%{version}%{pre_release}
-%patch1 -p1
-%patch2 -p1
-%patch3 -p1
-%patch4 -p1
-%patch5 -p1
-%patch6 -p1
-%patch7 -p1
-%patch8 -p1
-%patch9 -p1
-%patch10 -p1
-%patch11 -p1
-%patch12 -p1
-%patch13 -p1
-%patch14 -p1
-%patch15 -p1
-%patch16 -p1
-%patch17 -p1
-%patch18 -p1
-%patch19 -p1
+%autosetup -n %{name}-%{version}%{pre_release} -p1
 
 %build
+grep -F -r -l '/usr/bin/env python' | xargs --no-run-if-empty -n1 sed -i 's@/usr/bin/env python.*@%python3@g'
+autoreconf -i
 %configure --prefix=/usr ROOTSBINDIR=%{_sbindir}
 make %{?_smp_mflags}
 
@@ -88,27 +81,30 @@ mkdir -p %{buildroot}%{_sysconfdir}/%{name}
 mkdir -p %{buildroot}%{_sysconfdir}/request-key.d
 install -m 644 contrib/request-key.d/cifs.idmap.conf %{buildroot}%{_sysconfdir}/request-key.d
 install -m 644 contrib/request-key.d/cifs.spnego.conf %{buildroot}%{_sysconfdir}/request-key.d
-
-%clean
-rm -rf %{buildroot}
+install -Dpm 644 bash-completion/smbinfo %{buildroot}%{_datadir}%{bash_completion_dir}/smbinfo
 
 %files
-%defattr(-,root,root,-)
 %doc
+%license COPYING
 %{_bindir}/getcifsacl
 %{_bindir}/setcifsacl
 %{_bindir}/cifscreds
 %{_sbindir}/mount.cifs
+%{_sbindir}/mount.smb3
 %{_sbindir}/cifs.upcall
 %{_sbindir}/cifs.idmap
+%dir %{_libdir}/%{name}
 %{_libdir}/%{name}/idmapwb.so
-%{_mandir}/man1/getcifsacl.1.gz
-%{_mandir}/man1/setcifsacl.1.gz
-%{_mandir}/man1/cifscreds.1.gz
-%{_mandir}/man8/cifs.upcall.8.gz
-%{_mandir}/man8/cifs.idmap.8.gz
-%{_mandir}/man8/mount.cifs.8.gz
-%{_mandir}/man8/idmapwb.8.gz
+%{_mandir}/man1/getcifsacl.*
+%{_mandir}/man1/setcifsacl.*
+%{_mandir}/man1/cifscreds.*
+%{_mandir}/man8/cifs.upcall.*
+%{_mandir}/man8/cifs.idmap.*
+%{_mandir}/man8/mount.cifs.*
+%{_mandir}/man8/mount.smb3.*
+%{_mandir}/man8/idmapwb.*
+%{_datadir}%{bash_completion_dir}/smbinfo
+%dir %{_sysconfdir}/cifs-utils
 %ghost %{_sysconfdir}/cifs-utils/idmap-plugin
 %config(noreplace) %{_sysconfdir}/request-key.d/cifs.idmap.conf
 %config(noreplace) %{_sysconfdir}/request-key.d/cifs.spnego.conf
@@ -124,33 +120,168 @@ fi
 %files devel
 %{_includedir}/cifsidmap.h
 
+%files -n pam_cifscreds
+%{_libdir}/security/pam_cifscreds.so
+%{_mandir}/man8/pam_cifscreds.8.gz
+
+# This subpackage also serves the purpose of avoiding a Python dependency on
+# the main package: https://bugzilla.redhat.com/show_bug.cgi?id=1909288.
+%package info
+Summary: Additional tools for querying information about CIFS mount
+Requires: %{name}%{?_isa} = %{version}-%{release}
+
+%description info
+This subpackage includes additional tools for querying information
+about CIFS mount.
+
+%files info
+%{_bindir}/smb2-quota
+%{_bindir}/smbinfo
+%{_mandir}/man1/smb2-quota.*
+%{_mandir}/man1/smbinfo.*
+
 %changelog
-* Mon Apr 03 2017 Sachin Prabhu <sprabhu@redhat.com> - 6.2-10
-- aclocal: fix typo in idmap.m4
-- mount.cifs: Removed extra comma in front of domain
-- mount.cifs: Accept empty domains on the command line
-- mount.cifs: Fixed command line parsing and aligned with kernel
-- mount.cifs: Remove unneeded stdbool header include
-- manpage: document mfsymlinks in the mount.cifs man page
+## START: Generated by rpmautospec
+* Wed Oct 09 2024 Pavel Filipenský <pfilipensky@samba.org> - 7.1-2
+- Fix damaged test filename
 
-* Thu Jun 30 2016 Sachin Prabhu <sprabhu@redhat.com> - 6.2-9
-- Use $(DEFS) when building idmapwb.so
+* Tue Oct 08 2024 Pavel Filipenský <pfilipensky@samba.org> - 7.1-1
+- resolves: RHEL-61732 - Update to version 7.1
 
-* Thu Jun 30 2016 Sachin Prabhu <sprabhu@redhat.com> - 6.2-8
-- Prevent unnecessary linking of libwbclient
-- Uppercase orig_dev on 2nd try at mounting
-- Include paths.h in mtab.c
-- Clarify use of backupuid/backupgid in manpage
-- Ignore x-* mount options
+* Mon Apr 22 2024 Paulo Alcantara <paalcant@redhat.com> - 7.0-5
+- Implement CLDAP Ping to find the closest site
+- Resolves: RHELPLAN-17597
 
-* Fri Aug 29 2014 Sachin Prabhu <sprabhu@redhat.com> - 6.2-7
--  use krb5_kt_default() to determine default keytab location (bz#1083795)
+* Tue Apr 16 2024 Paulo Alcantara <paalcant@redhat.com> - 7.0-4
+- mount.cifs.rst: add missing reference for sssd
+- mount.cifs.rst: update section about xattr/acl support
+- Resolves: RHEL-22495
 
-* Fri Jan 24 2014 Daniel Mach <dmach@redhat.com> - 6.2-6
-- Mass rebuild 2014-01-24
+* Fri Apr 12 2024 Paulo Alcantara <paalcant@redhat.com> - 7.0-3
+- pam_cifscreds: fix NULL arg warning passed to pam_syslog()
+- Resolves: RHEL-28050
 
-* Fri Dec 27 2013 Daniel Mach <dmach@redhat.com> - 6.2-5
-- Mass rebuild 2013-12-27
+* Fri Apr 12 2024 Paulo Alcantara <paalcant@redhat.com> - 7.0-2
+- cifs.upcall: fix UAF in get_cachename_from_process_env()
+- Resolves: RHEL-28047
+
+* Mon Jan 30 2023 Pavel Filipenský <pfilipen@redhat.com> - 7.0-1
+- Update to cifs-utils-7.0
+- Resolves: rhbz#2163303
+
+* Wed Feb 02 2022 Alexander Bokovoy <abokovoy@redhat.com> - 6.14
+- Update to v6.14 release
+- Resolves: rhbz#1925956
+
+* Mon Aug 09 2021 Mohan Boddu <mboddu@redhat.com> - 6.11-5
+- Rebuilt for IMA sigs, glibc 2.34, aarch64 flags
+  Related: rhbz#1991688
+
+* Thu Apr 15 2021 Mohan Boddu <mboddu@redhat.com> - 6.11-4
+- Rebuilt for RHEL 9 BETA on Apr 15th 2021. Related: rhbz#1947937
+
+* Tue Jan 26 2021 Fedora Release Engineering <releng@fedoraproject.org> - 6.11-3
+- Rebuilt for https://fedoraproject.org/wiki/Fedora_34_Mass_Rebuild
+
+* Fri Dec 18 2020 Jonathan Lebon <jonathan@jlebon.com> - 6.11-2
+- Split out -info subpackage for smb2-quota and smbinfo
+  https://bugzilla.redhat.com/show_bug.cgi?id=1909288
+
+* Mon Nov 02 2020 Alexander Bokovoy <abokovoy@redhat.com> - 6.11-1
+- Update to v6.11 release
+- Resolves: rhbz#1876400 - CVE-2020-14342 - cifs-utils: shell command injection
+
+* Mon Jul 27 2020 Fedora Release Engineering <releng@fedoraproject.org> - 6.9-4
+- Rebuilt for https://fedoraproject.org/wiki/Fedora_33_Mass_Rebuild
+
+* Tue Jan 28 2020 Fedora Release Engineering <releng@fedoraproject.org> - 6.9-3
+- Rebuilt for https://fedoraproject.org/wiki/Fedora_32_Mass_Rebuild
+
+* Wed Jul 24 2019 Fedora Release Engineering <releng@fedoraproject.org> - 6.9-2
+- Rebuilt for https://fedoraproject.org/wiki/Fedora_31_Mass_Rebuild
+
+* Sun Apr 21 2019 Jeff Layton <jlayton@redhat.com>- 6.9-1
+- Update to v6.9 release
+
+* Thu Jan 31 2019 Fedora Release Engineering <releng@fedoraproject.org> - 6.8-4
+- Rebuilt for https://fedoraproject.org/wiki/Fedora_30_Mass_Rebuild
+
+* Tue Jul 17 2018 Alexander Bokovoy <abokovoy@redhat.com> - 6.8-3
+- Use Python 3 version of rst2man
+
+* Thu Jul 12 2018 Fedora Release Engineering <releng@fedoraproject.org> - 6.8-2
+- Rebuilt for https://fedoraproject.org/wiki/Fedora_29_Mass_Rebuild
+
+* Tue Apr 10 2018 Fedora Release Engineering <releng@fedoraproject.org> - 6.8-1
+- update to 6.8 release
+
+* Wed Feb 07 2018 Fedora Release Engineering <releng@fedoraproject.org> - 6.7-6
+- Rebuilt for https://fedoraproject.org/wiki/Fedora_28_Mass_Rebuild
+
+* Tue Nov 07 2017 Jeff Layton <jlayton@redhat.com> - 6.7-5
+- more updates, switch to rst for manpages
+- update mount.cifs manpage to describe defaults better (BZ#1474539)
+
+* Sun Oct 29 2017 Jeff Layton <jlayton@redhat.com> - 6.7-4
+- pull in all patches merged since 6.7 was released
+
+* Wed Aug 02 2017 Fedora Release Engineering <releng@fedoraproject.org> - 6.7-3
+- Rebuilt for https://fedoraproject.org/wiki/Fedora_27_Binutils_Mass_Rebuild
+
+* Wed Jul 26 2017 Fedora Release Engineering <releng@fedoraproject.org> - 6.7-2
+- Rebuilt for https://fedoraproject.org/wiki/Fedora_27_Mass_Rebuild
+
+* Thu Mar 02 2017 Jeff Layton <jlayton@redhat.com> - 6.7-1
+- update to 6.7 release
+
+* Fri Feb 10 2017 Fedora Release Engineering <releng@fedoraproject.org> - 6.6-2
+- Rebuilt for https://fedoraproject.org/wiki/Fedora_26_Mass_Rebuild
+
+* Wed Sep 07 2016 Jeff Layton <jlayton@redhat.com> - 6.6-1
+- update to 6.6 release
+
+* Wed Aug 24 2016 Jeff Layton <jlayton@redhat.com> - 6.5-3
+- more cifs.upcall cleanup work
+
+* Wed Aug 24 2016 Jeff Layton <jlayton@redhat.com> - 6.5-2
+- clean up and streamline cifs.upcall handling for GSSAPI
+
+* Thu Mar 10 2016 Sachin Prabhu <sprabhu@redhat.com> - 6.5-1
+- Update to 6.5 release
+- Fix URL to cifs-utils upstream source
+
+* Wed Feb 03 2016 Fedora Release Engineering <releng@fedoraproject.org> - 6.4-5
+- Rebuilt for https://fedoraproject.org/wiki/Fedora_24_Mass_Rebuild
+
+* Wed Jun 17 2015 Fedora Release Engineering <rel-eng@lists.fedoraproject.org> - 6.4-4
+- Rebuilt for https://fedoraproject.org/wiki/Fedora_23_Mass_Rebuild
+
+* Wed Jan 21 2015 Ralf Corsépius <corsepiu@fedoraproject.org> - 6.4-3
+- Let package own %%{_sysconfdir}/cifs-utils (RHBZ#1184390).
+- Let package own %%{_libdir}/cifs-utils (RHBZ#1184391).
+
+* Sat Aug 16 2014 Fedora Release Engineering <rel-eng@lists.fedoraproject.org> - 6.4-2
+- Rebuilt for https://fedoraproject.org/wiki/Fedora_21_22_Mass_Rebuild
+
+* Mon Aug 04 2014 Sachin Prabhu <sprabhu@redhat.com> - 6.4-1
+- update to 6.4 release
+
+* Sat Jun 07 2014 Fedora Release Engineering <rel-eng@lists.fedoraproject.org> - 6.3-3
+- Rebuilt for https://fedoraproject.org/wiki/Fedora_21_Mass_Rebuild
+
+* Tue May 06 2014 Sachin Prabhu <sprabhu@redhat.com> 6.3-2
+- autoconf: allow PAM security install directory to be configurable
+- cifs: use krb5_kt_default() to determine default keytab location
+- cifskey: better use snprintf()
+- cifscreds: better error handling when key_search fails
+- cifscreds: better error handling for key_add
+
+* Thu Jan 09 2014 Jeff Layton <jlayton@redhat.com> 6.3-1
+- update to 6.3 release
+
+* Fri Dec 13 2013 Jeff Layton <jlayton@redhat.com> 6.2-5
+- fix linking of wbclient
+- add pam_cifscreds module and manpage
 
 * Mon Oct 14 2013 Jeff Layton <jlayton@redhat.com> 6.2-4
 - fix use-after-free in asn1_write
@@ -162,18 +293,21 @@ fi
 - fix bad handling of allocated memory in del_mtab in mount.cifs.c
 
 * Wed Oct 09 2013 Jeff Layton <jlayton@redhat.com> 6.2-2
-- fix bad bit shift in setcifsacl.c (bz#1016932)
+- fix bad bit shift in setcifsacl.c
 
-* Mon Oct 07 2013 Jeff Layton <jlayton@redhat.com> 6.2-1
+* Fri Oct 04 2013 Jeff Layton <jlayton@redhat.com> 6.2-1
 - update to 6.2 release
 
-* Tue Jul 16 2013 Jeff Layton <jlayton@redhat.com> 6.1-3
-- allow setcifsacl to work if plugin can't be loaded (#985067)
+* Sat Aug 03 2013 Fedora Release Engineering <rel-eng@lists.fedoraproject.org> - 6.1-4
+- Rebuilt for https://fedoraproject.org/wiki/Fedora_20_Mass_Rebuild
 
-* Tue Jul 16 2013 Jeff Layton <jlayton@redhat.com> 6.1-2
-- Convert idmapping plugin symlink to use alternatives system (#984643)
+* Mon Jul 15 2013 Jeff Layton <jlayton@redhat.com> 6.1-3
+- allow setcifsacl to work if plugin can't be loaded (bz#984087)
 
-* Wed Jul 03 2013 Jeff Layton <jlayton@redhat.com> 6.1-1
+* Mon Jul 15 2013 Jeff Layton <jlayton@redhat.com> 6.1-2
+- Convert idmapping plugin symlink to use alternatives system (bz#984088)
+
+* Tue Jul 02 2013 Jeff Layton <jlayton@redhat.com> 6.1-1
 - update to 6.1 release
 
 * Mon Mar 25 2013 Jeff Layton <jlayton@redhat.com> 6.0-1
@@ -327,3 +461,4 @@ fi
 * Mon Feb 08 2010 Jeff Layton <jlayton@redhat.com> 4.0a1-1
 - first RPM package build
 
+## END: Generated by rpmautospec
