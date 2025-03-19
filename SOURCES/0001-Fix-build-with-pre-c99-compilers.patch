@@ -1,0 +1,59 @@
+From a47ef26199c3c6799aeed27e345580f5a08be83e Mon Sep 17 00:00:00 2001
+From: Yann Dirson <yann.dirson@vates.tech>
+Date: Wed, 19 Mar 2025 14:33:53 +0100
+Subject: [PATCH] Fix build with pre-c99 compilers
+
+---
+ cldap_ping.c   | 3 ++-
+ resolve_host.c | 7 ++++---
+ 2 files changed, 6 insertions(+), 4 deletions(-)
+
+diff --git a/cldap_ping.c b/cldap_ping.c
+index 9183b27..0a5269b 100644
+--- a/cldap_ping.c
++++ b/cldap_ping.c
+@@ -276,7 +276,8 @@ int netlogon_get_client_site(char *netlogon_response, size_t netlogon_size, char
+ 	// and start directly at variable string portion of NETLOGON_SAM_LOGON_RESPONSE_EX
+ 	size_t offset = 24;
+ 
+-	for (int i=0; i < 8; i++) {
++	int i;
++	for (i=0; i < 8; i++) {
+ 		// iterate over DnsForestName, DnsDomainName, NetbiosDomainName, NetbiosComputerName, UserName, DcSiteName
+ 		// to finally get to our desired ClientSiteName field
+ 		if (read_dns_string(netlogon_response, netlogon_size, sitename, MAXCDNAME, &offset) < 0) {
+diff --git a/resolve_host.c b/resolve_host.c
+index fc682e5..3aca338 100644
+--- a/resolve_host.c
++++ b/resolve_host.c
+@@ -148,7 +148,8 @@ int resolve_host(const char *host, char *addrstr) {
+ 
+ 		char site_name[MAXCDNAME];
+ 		// We assume that AD always sends the ip addresses in the addtional data block
+-		for (int i = 0; i < ns_msg_count(global_domain_handle, ns_s_ar); i++) {
++		int i;
++		for (i = 0; i < ns_msg_count(global_domain_handle, ns_s_ar); i++) {
+ 			ns_rr rr;
+ 			res = ns_parserr(&global_domain_handle, ns_s_ar, i, &rr);
+ 			if (res < 0)
+@@ -200,7 +201,7 @@ int resolve_host(const char *host, char *addrstr) {
+ 			goto resolve_host_out;
+ 
+ 		int number_addresses = 0;
+-		for (int i = 0; i < ns_msg_count(site_domain_handle, ns_s_ar); i++) {
++		for (i = 0; i < ns_msg_count(site_domain_handle, ns_s_ar); i++) {
+ 			if (i > MAX_ADDRESSES)
+ 				break;
+ 
+@@ -245,7 +246,7 @@ int resolve_host(const char *host, char *addrstr) {
+ 		}
+ 
+ 		// Preferred site ips is now the first entry in addrstr, fill up with other sites till MAX_ADDRESS
+-		for (int i = 0; i < ns_msg_count(global_domain_handle, ns_s_ar); i++) {
++		for (i = 0; i < ns_msg_count(global_domain_handle, ns_s_ar); i++) {
+ 			if (number_addresses > MAX_ADDRESSES)
+ 				break;
+ 
+-- 
+2.39.5
+
